@@ -6,6 +6,7 @@ import dummyData from '../utils/dummyData';
 dotenv.config();
 
 const router = express.Router();
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 /**
  * Step 1 – Redirect the user to GitHub's OAuth consent screen.
@@ -56,3 +57,14 @@ router.get('/github/callback', async (req, res) => {
 });
 
 export default router;
+
+/**
+ * Optional mobile-safe proxy: if your GitHub OAuth "Authorization callback URL"
+ * is set to the backend (e.g., https://api.yourapp.com/auth/github/callback-proxy),
+ * this route will redirect the browser to the frontend callback with the same query string.
+ */
+router.get('/github/callback-proxy', (req, res) => {
+  const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  const target = `${FRONTEND_URL}/auth/github/callback${qs}`;
+  return res.redirect(target);
+});
