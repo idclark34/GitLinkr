@@ -43,7 +43,7 @@ router.get('/github/callback', async (req, res) => {
   }
 
   try {
-    const token = await github.exchangeCodeForToken(code);
+    const token = await github.exchangeCodeForToken(String(code));
     const user = await github.fetchGitHubUser(token);
     const repos = await github.fetchUserRepos(token, user.login);
 

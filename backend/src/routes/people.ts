@@ -79,11 +79,11 @@ router.post('/people/search', async (req, res) => {
       // Start run
       const startUrl = `${APIFY_BASE}/acts/${DEFAULT_ACTOR}/runs?token=${encodeURIComponent(token)}`;
       const startRes = await fetch(startUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
-      const start = await startRes.json();
+      const start: any = await startRes.json();
       if (!startRes.ok) return { status: 'ERROR', error: start };
       if (!wait) return { status: 'STARTED', run: start };
 
-      const runId = start.data?.id || start.id;
+      const runId = (start as any)?.data?.id || (start as any)?.id;
       if (!runId) return { status: 'ERROR', error: 'missing run id' };
       // Poll
       const maxMs = 120_000; const intervalMs = 1500; const t0 = Date.now();
@@ -91,15 +91,15 @@ router.post('/people/search', async (req, res) => {
       while (Date.now() - t0 < maxMs) {
         const runUrl = `${APIFY_BASE}/actor-runs/${encodeURIComponent(runId)}?token=${encodeURIComponent(token)}`;
         const runRes = await fetch(runUrl);
-        const run = await runRes.json();
+        const run: any = await runRes.json();
         if (!runRes.ok) return { status: 'ERROR', error: run };
-        status = run.data?.status || run.status;
-        datasetId = run.data?.defaultDatasetId || run.defaultDatasetId;
+        status = (run as any)?.data?.status || (run as any)?.status;
+        datasetId = (run as any)?.data?.defaultDatasetId || (run as any)?.defaultDatasetId;
         if (['SUCCEEDED','FAILED','ABORTED','TIMED-OUT'].includes(status)) {
           if (status !== 'SUCCEEDED' || !datasetId) return { status, run };
           const dsUrl = `${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?token=${encodeURIComponent(token)}`;
           const dsRes = await fetch(dsUrl);
-          const items = await dsRes.json();
+          const items: any = await dsRes.json();
           const mapped = Array.isArray(items) ? items.map(mapApifyItemToPerson) : [];
           return { status, items: mapped, rawItems: items };
         }

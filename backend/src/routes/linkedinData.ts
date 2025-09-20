@@ -8,8 +8,8 @@ const router = express.Router();
 
 // GET /api/linkedin/company-by-domain?domain=apple.com
 router.get('/linkedin/company-by-domain', async (req, res) => {
-  const { domain } = req.query;
-  if (!domain || Array.isArray(domain)) {
+  const domain = String(req.query.domain || '');
+  if (!domain) {
     return res.status(400).json({ error: 'Missing domain' });
   }
 

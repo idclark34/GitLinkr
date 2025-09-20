@@ -24,7 +24,7 @@ router.get('/linkedin/callback', async (req, res) => {
   const { code } = req.query;
   if (!code || Array.isArray(code)) return res.status(400).json({ error: 'Missing code' });
   try {
-    const token = await li.exchangeCodeForToken(code);
+    const token = await li.exchangeCodeForToken(String(code));
     const profile = await li.fetchLinkedInProfile(token);
     return res.json({ token, profile });
   } catch (e) {

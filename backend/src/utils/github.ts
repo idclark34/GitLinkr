@@ -40,7 +40,8 @@ export async function fetchUserRepos(token: string | undefined, username: string
     },
   });
   if (!res.ok) throw new Error('Failed repos');
-  return res.json();
+  const data: any = await res.json();
+  return data as any[];
 }
 
 export async function fetchPublicProfile(username: string, token?: string): Promise<any> {

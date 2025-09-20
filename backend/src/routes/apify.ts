@@ -97,12 +97,12 @@ router.post('/apify/search', async (req, res) => {
     // Start the actor run
     const startUrl = `${APIFY_BASE}/acts/${DEFAULT_ACTOR}/runs?token=${encodeURIComponent(token)}`;
     const startRes = await fetch(startUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
-    const start = await startRes.json();
-    if (!startRes.ok) return res.status(startRes.status).json(start);
+    const start: any = await startRes.json();
+    if (!startRes.ok) return res.status(startRes.status).json(start as any);
 
     if (!wait) return res.json(start);
 
-    const runId = start.data?.id || start.id;
+    const runId = (start as any)?.data?.id || (start as any)?.id;
     if (!runId) return res.status(500).json({ error: 'Missing run id from Apify' });
 
     // Poll run status until it finishes (with a soft cap)
@@ -114,17 +114,17 @@ router.post('/apify/search', async (req, res) => {
     while (Date.now() - started < maxMs) {
       const runUrl = `${APIFY_BASE}/runs/${encodeURIComponent(runId)}?token=${encodeURIComponent(token)}`;
       const runRes = await fetch(runUrl);
-      const run = await runRes.json();
-      if (!runRes.ok) return res.status(runRes.status).json(run);
-      status = run.data?.status || run.status;
-      datasetId = run.data?.defaultDatasetId || run.defaultDatasetId;
+      const run: any = await runRes.json();
+      if (!runRes.ok) return res.status(runRes.status).json(run as any);
+      status = (run as any)?.data?.status || (run as any)?.status;
+      datasetId = (run as any)?.data?.defaultDatasetId || (run as any)?.defaultDatasetId;
       if (status === 'SUCCEEDED' || status === 'FAILED' || status === 'ABORTED' || status === 'TIMED-OUT') {
         if (status !== 'SUCCEEDED' || !datasetId) {
           return res.json({ status, run });
         }
         const dsUrl = `${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?token=${encodeURIComponent(token)}`;
         const dsRes = await fetch(dsUrl);
-        const items = await dsRes.json();
+        const items: any = await dsRes.json();
         return res.json({ status, run, items });
       }
       await new Promise((r) => setTimeout(r, intervalMs));
