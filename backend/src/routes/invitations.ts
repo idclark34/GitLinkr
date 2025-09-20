@@ -50,14 +50,19 @@ router.post('/invitations/create', async (req: Request, res: Response) => {
   if (!inviter) return res.status(400).json({ error: 'inviter is required' });
 
   try {
-    const rows = [...emails.map((e: string) => ({ invitee_email: e.trim() })), ...githubUsernames.map((g: string) => ({ invitee_github_login: g.trim() }))]
-      .filter((r) => (r.invitee_email && r.invitee_email.length) || (r.invitee_github_login && r.invitee_github_login.length))
+    type Candidate = { invitee_email?: string | null; invitee_github_login?: string | null };
+    const candidates: Candidate[] = [
+      ...emails.map((e: string) => ({ invitee_email: e.trim() || null })),
+      ...githubUsernames.map((g: string) => ({ invitee_github_login: g.trim() || null })),
+    ];
+    const rows = candidates
+      .filter((r) => Boolean(r.invitee_email) || Boolean(r.invitee_github_login))
       .map((r) => ({
         id: crypto.randomUUID(),
         code: crypto.randomUUID(),
         inviter_github_login: inviter,
-        invitee_email: (r as any).invitee_email || null,
-        invitee_github_login: (r as any).invitee_github_login || null,
+        invitee_email: r.invitee_email ?? null,
+        invitee_github_login: r.invitee_github_login ?? null,
         status: 'sent',
       }));
 
