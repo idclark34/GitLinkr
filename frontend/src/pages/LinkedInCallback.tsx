@@ -30,6 +30,20 @@ export default function LinkedInCallback() {
               email: profile?.email || null,
               raw: profile || null,
             });
+            // Auto-enrich: if we stored a profile_url before, try to fetch raw details and persist
+            try {
+              const existing = JSON.parse(localStorage.getItem('li_profile') || 'null');
+              const url = existing?.profile_url || null;
+              const backendUrl = ((import.meta as any).env?.VITE_BACKEND_URL as string | undefined) || 'http://localhost:4000';
+              if (url) {
+                const res = await fetch(`${backendUrl}/api/linkedin/profile?url=${encodeURIComponent(url)}`);
+                if (res.ok) {
+                  const raw = await res.json();
+                  await supabase.from('linkedin_profiles').upsert({ github_login: ghUser.login, raw, profile_url: url });
+                  localStorage.setItem('li_profile', JSON.stringify({ ...profile, raw, profile_url: url }));
+                }
+              }
+            } catch {}
             // Opportunistically hydrate custom profile from LinkedIn on first link
             const { data: existing } = await supabase
               .from('custom_profiles')

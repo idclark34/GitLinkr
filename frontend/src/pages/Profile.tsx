@@ -27,7 +27,7 @@ export default function Profile() {
   const [liName, setLiName] = useState('');
   const [liHeadline, setLiHeadline] = useState('');
   const [liEmail, setLiEmail] = useState('');
-  const deriveOrgEdu = (raw: any): { company?: string; school?: string } => {
+  const deriveFromRaw = (raw: any): { company?: string; school?: string; title?: string; location?: string; skills?: string[]; companyLogo?: string; companyUrl?: string } => {
     try {
       if (!raw) return {};
       const exp = (raw.experiences || raw.experience || raw.positions || raw.jobs || []) as any[];
@@ -36,7 +36,12 @@ export default function Profile() {
       const firstEdu = Array.isArray(edu) ? edu.find((e)=> e && (e.school || e.schoolName || e.organization)) : undefined;
       const company = (firstExp?.companyName || firstExp?.company || firstExp?.organization || undefined) as string | undefined;
       const school = (firstEdu?.schoolName || firstEdu?.school || firstEdu?.organization || undefined) as string | undefined;
-      return { company, school };
+      const title = (firstExp?.title || firstExp?.position || undefined) as string | undefined;
+      const location = (raw?.locationName || raw?.location || firstExp?.location || undefined) as string | undefined;
+      const skills = Array.isArray(raw?.skills) ? raw.skills.map((s:any)=> s?.name || s).filter(Boolean).slice(0,10) : undefined;
+      const companyLogo = (firstExp?.companyLogo || firstExp?.company_logo || undefined) as string | undefined;
+      const companyUrl = (firstExp?.companyUrl || firstExp?.company_url || undefined) as string | undefined;
+      return { company, school, title, location, skills, companyLogo, companyUrl };
     } catch { return {}; }
   };
 
@@ -367,9 +372,16 @@ export default function Profile() {
           {(liProfile?.headline || data?.linkedin?.headline) && (
             <p className="text-sm italic text-blue-500 dark:text-blue-400">{liProfile?.headline || data?.linkedin?.headline}</p>
           )}
-          {/* Company / School (from enriched LinkedIn raw) */}
-          {(()=>{ const raw = liProfile?.raw; const d = deriveOrgEdu(raw); return (d.company || d.school) ? (
-            <p className="text-sm text-gray-600 dark:text-gray-300">{[d.company, d.school].filter(Boolean).join(' • ')}</p>
+          {/* Company / School / Title / Location (from enriched LinkedIn raw) */}
+          {(()=>{ const raw = liProfile?.raw; const d = deriveFromRaw(raw); return (d.company || d.school || d.title || d.location) ? (
+            <div className="text-sm text-gray-600 dark:text-gray-300 flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                {d.companyLogo && <img src={d.companyLogo} alt="logo" className="w-4 h-4 rounded" />}
+                {d.companyUrl ? <a href={d.companyUrl} target="_blank" rel="noreferrer" className="hover:underline">{d.company}</a> : <span>{d.company}</span>}
+                {d.school && <span>• {d.school}</span>}
+              </div>
+              {(d.title || d.location) && <div>{[d.title, d.location].filter(Boolean).join(' • ')}</div>}
+            </div>
           ) : null; })()}
 
           {/* Language badges */}
@@ -441,10 +453,10 @@ export default function Profile() {
                   if (!res.ok) throw new Error(await res.text());
                   const data = await res.json();
                   const current = JSON.parse(localStorage.getItem('li_profile') || 'null') || {};
-                  const merged = { ...current, raw: data };
+                  const merged = { ...current, raw: data, profile_url: url };
                   localStorage.setItem('li_profile', JSON.stringify(merged));
                   if (username) {
-                    try { await supabase.from('linkedin_profiles').upsert({ github_login: username, raw: data }); } catch {}
+                    try { await supabase.from('linkedin_profiles').upsert({ github_login: username, raw: data, profile_url: url }); } catch {}
                   }
                   window.location.reload();
                 } catch (e) {
