@@ -36,11 +36,19 @@ import peopleRoutes from './routes/people';
 
 const app = express();
 
-// Allow local frontend dev & deployed FE domain
+// Allow local frontend dev & deployed FE domain(s)
 const allowedOrigins = [
   'http://localhost:5173',
   process.env.FRONTEND_URL || '',
-].filter(Boolean);
+  ...(process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+];
+const allowedOriginSuffixes = (process.env.ALLOWED_ORIGIN_SUFFIXES || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 app.use(
   cors({
@@ -48,6 +56,9 @@ app.use(
       // Allow same-origin and tools that do not send Origin header
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (allowedOriginSuffixes.some((suffix) => origin.endsWith(suffix))) {
+        return callback(null, true);
+      }
       return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
@@ -73,6 +84,24 @@ app.use('/auth', linkedinRoutes);
 app.use('/api', linkedinDataRoutes);
 app.use('/api', apifyRoutes);
 app.use('/api', peopleRoutes);
+
+// Health + root info
+app.get('/health', (_req, res) => {
+  return res.status(200).json({ ok: true });
+});
+
+app.get('/', (_req, res) => {
+  return res.json({
+    ok: true,
+    service: 'GitLinkr backend',
+    version: '0.1.0',
+    uptime_sec: Math.round(process.uptime()),
+    docs: {
+      categories: '/api/search/categories',
+      people_search: 'POST /api/people/search',
+    },
+  });
+});
 
 const port = process.env.PORT || 4000;
 app.listen(port, () => {

@@ -9,6 +9,7 @@ import supabase from '../supabase.ts';
 
 export default function Profile() {
   const { username } = useParams<{ username: string }>();
+  const BACKEND_URL = ((import.meta as any).env?.VITE_BACKEND_URL as string | undefined) || 'http://localhost:4000';
 
   const { data, error } = useSWR(() => `/api/profile/${username}`, (url) => api.get(url).then((r) => r.data));
   const { data: followers, mutate: refetchFollowers } = useSWR(username ? `/api/followers/${username}` : null, (url)=>api.get(url).then(r=>r.data));
@@ -23,6 +24,9 @@ export default function Profile() {
   const [displayName, setDisplayName] = useState('');
   const [editNameMode, setEditNameMode] = useState(false);
   const [connectStatus, setConnectStatus] = useState<'none' | 'pending' | 'sent' | 'connected'>('none');
+  const [liName, setLiName] = useState('');
+  const [liHeadline, setLiHeadline] = useState('');
+  const [liEmail, setLiEmail] = useState('');
 
   // fetch my connections to guard button on load
   const { data: myConnections } = useSWR(ghMe ? `/api/connections/${ghMe.login}` : null, (url) => api.get(url).then(r=>r.data));
@@ -55,6 +59,23 @@ export default function Profile() {
           setAbout(data.about || '');
         }
       });
+    // Load LinkedIn profile (if stored server-side) into local cache
+    supabase
+      .from('linkedin_profiles')
+      .select('name, headline, email, raw')
+      .eq('github_login', username)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          localStorage.setItem('li_profile', JSON.stringify({
+            name: data.name,
+            headline: data.headline,
+            email: data.email,
+            raw: data.raw,
+          }));
+        }
+      })
+      .catch(()=>{});
   }, [username]);
 
   const saveAbout = (val: string) => {
@@ -352,11 +373,31 @@ export default function Profile() {
       </section>
 
       {/* LinkedIn connect banner or badge */}
-      {!liProfile && (
-        <div className='col-span-12'>
-          <a href='http://localhost:4000/auth/linkedin' className='block bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg text-center shadow transition'>
-            Connect LinkedIn to enrich your profile
+      {!liProfile && isMe && (
+        <div className='col-span-12 space-y-3'>
+          <a href={`${BACKEND_URL}/auth/linkedin`} className='block bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg text-center shadow transition'>
+            Connect LinkedIn (official)
           </a>
+          <div className='bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4'>
+            <h3 className='font-semibold mb-2'>Or add LinkedIn details manually</h3>
+            <div className='grid sm:grid-cols-3 gap-2'>
+              <input value={liName} onChange={(e)=>setLiName(e.target.value)} placeholder='Full name' className='px-3 py-2 rounded bg-gray-900/10 dark:bg-gray-900/30 border border-gray-300 dark:border-gray-700' />
+              <input value={liHeadline} onChange={(e)=>setLiHeadline(e.target.value)} placeholder='Headline (e.g., Staff Engineer @ Company)' className='px-3 py-2 rounded bg-gray-900/10 dark:bg-gray-900/30 border border-gray-300 dark:border-gray-700' />
+              <input value={liEmail} onChange={(e)=>setLiEmail(e.target.value)} placeholder='Email (optional)' className='px-3 py-2 rounded bg-gray-900/10 dark:bg-gray-900/30 border border-gray-300 dark:border-gray-700' />
+            </div>
+            <button
+              onClick={async ()=>{ 
+                const payload = { name: liName || undefined, headline: liHeadline || undefined, email: liEmail || undefined } as any;
+                localStorage.setItem('li_profile', JSON.stringify(payload)); 
+                if (username) {
+                  try { await supabase.from('linkedin_profiles').upsert({ github_login: username, ...payload }); } catch {}
+                }
+                window.location.reload();
+              }}
+              className='mt-3 px-4 py-2 rounded bg-brand-600 text-white'>
+              Save to profile
+            </button>
+          </div>
         </div>
       )}
       {liProfile && (
@@ -372,6 +413,13 @@ export default function Profile() {
               }}
               className='text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded'>
               Copy email
+            </button>
+          )}
+          {isMe && (
+            <button
+              onClick={async ()=>{ localStorage.removeItem('li_profile'); if (username) { try { await supabase.from('linkedin_profiles').delete().eq('github_login', username); } catch {} } window.location.reload(); }}
+              className='text-xs border border-gray-400 text-gray-600 dark:text-gray-300 px-2 py-1 rounded'>
+              Remove
             </button>
           )}
         </div>
@@ -509,6 +557,56 @@ function RepoPicker({ username, onSelect, query }: { username: string; onSelect:
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function LinkedInImport({ backendUrl, onImported }: { backendUrl: string; onImported: (profile: any)=>void }) {
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const importProfile = async () => {
+    setError(null);
+    const clean = url.trim();
+    if (!clean) { setError('Paste your LinkedIn profile URL'); return; }
+    try {
+      setLoading(true);
+      const res = await fetch(`${backendUrl}/api/linkedin/profile?url=${encodeURIComponent(clean)}`);
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t || 'Failed');
+      }
+      const data = await res.json();
+      // Normalize a minimal shape for FE usage
+      const normalized = {
+        name: data?.full_name || data?.name || data?.personal_info?.full_name || undefined,
+        headline: data?.headline || data?.personal_info?.headline || undefined,
+        email: data?.email || (Array.isArray(data?.contact_info?.emails) ? data.contact_info.emails[0] : undefined),
+        raw: data,
+      };
+      onImported(normalized);
+    } catch (e: any) {
+      setError(e?.message || 'Import failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <div className='bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4'>
+      <h3 className='font-semibold mb-2'>Import LinkedIn profile</h3>
+      <div className='flex gap-2'>
+        <input
+          value={url}
+          onChange={(e)=>setUrl(e.target.value)}
+          placeholder='https://www.linkedin.com/in/your-handle'
+          className='flex-1 px-3 py-2 rounded bg-gray-900/10 dark:bg-gray-900/30 border border-gray-300 dark:border-gray-700'
+        />
+        <button onClick={importProfile} disabled={loading} className='px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50'>
+          {loading ? 'Importing…' : 'Import'}
+        </button>
+      </div>
+      {error && <div className='text-sm text-red-500 mt-2'>{error}</div>}
+      <p className='text-xs text-gray-500 dark:text-gray-400 mt-2'>We use a RapidAPI provider to import public profile info.</p>
     </div>
   );
 }

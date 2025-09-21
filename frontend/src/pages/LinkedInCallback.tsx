@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api.ts';
+import supabase from '../supabase.ts';
 
 export default function LinkedInCallback() {
   const navigate = useNavigate();
@@ -16,10 +17,20 @@ export default function LinkedInCallback() {
     (async () => {
       try {
         const { data } = await api.get(`/auth/linkedin/callback?code=${code}`);
-        localStorage.setItem('li_profile', JSON.stringify(data.profile));
-        // Redirect to logged-in user's profile (assumes gh_user stored)
+        const profile = data.profile;
+        localStorage.setItem('li_profile', JSON.stringify(profile));
         const ghUser = JSON.parse(localStorage.getItem('gh_user') || 'null');
+        // Persist to Supabase if we know the GitHub login
         if (ghUser?.login) {
+          try {
+            await supabase.from('linkedin_profiles').upsert({
+              github_login: ghUser.login,
+              name: profile?.name || [profile?.given_name, profile?.family_name].filter(Boolean).join(' ') || null,
+              headline: profile?.headline || null,
+              email: profile?.email || null,
+              raw: profile || null,
+            });
+          } catch {}
           navigate(`/profile/${ghUser.login}`, { replace: true });
         } else {
           navigate('/login', { replace: true });
