@@ -30,6 +30,19 @@ export default function LinkedInCallback() {
               email: profile?.email || null,
               raw: profile || null,
             });
+            // Opportunistically hydrate custom profile from LinkedIn on first link
+            const { data: existing } = await supabase
+              .from('custom_profiles')
+              .select('display_name, about')
+              .eq('github_login', ghUser.login)
+              .maybeSingle();
+            const updates: any = {};
+            const nameFromLi = profile?.name || [profile?.given_name, profile?.family_name].filter(Boolean).join(' ') || '';
+            if ((!existing || !existing.display_name) && nameFromLi) updates.display_name = nameFromLi;
+            if ((!existing || !existing.about) && (profile?.headline || '')) updates.about = profile.headline;
+            if (Object.keys(updates).length > 0) {
+              await supabase.from('custom_profiles').upsert({ github_login: ghUser.login, ...updates });
+            }
           } catch {}
           navigate(`/profile/${ghUser.login}`, { replace: true });
         } else {

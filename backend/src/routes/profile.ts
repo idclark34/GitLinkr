@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import * as github from '../utils/github';
+import { createClient } from '@supabase/supabase-js';
 import dummyData from '../utils/dummyData';
 
 const router = express.Router();
@@ -44,8 +45,23 @@ router.get('/profile/:username', async (req, res) => {
     const token = (req.headers.authorization || '').replace('Bearer ', '') || process.env.GITHUB_FALLBACK_TOKEN || undefined;
     const user = await github.fetchPublicProfile(username, token);
     const repos = await github.fetchUserRepos(token, username);
+    // Attach LinkedIn profile stub from Supabase if available
+    let li: any = null;
+    try {
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+      if (supabaseUrl && supabaseAnonKey) {
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        const { data } = await supabase
+          .from('linkedin_profiles')
+          .select('name, headline, email')
+          .eq('github_login', username)
+          .maybeSingle();
+        li = data || null;
+      }
+    } catch {}
 
-    return res.json({ user, repos });
+    return res.json({ user, repos, linkedin: li });
   } catch (err) {
     /* eslint-disable no-console */
     console.error(err);

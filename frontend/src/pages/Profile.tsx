@@ -352,8 +352,8 @@ export default function Profile() {
           ) : (
             (about || defaultBio) && <p className="mt-3 text-sm italic text-gray-300">{about || defaultBio}</p>
           )}
-          {liProfile?.headline && (
-            <p className="text-sm italic text-blue-500 dark:text-blue-400">{liProfile.headline}</p>
+          {(liProfile?.headline || data?.linkedin?.headline) && (
+            <p className="text-sm italic text-blue-500 dark:text-blue-400">{liProfile?.headline || data?.linkedin?.headline}</p>
           )}
 
           {/* Language badges */}
