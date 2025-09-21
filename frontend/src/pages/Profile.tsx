@@ -27,6 +27,18 @@ export default function Profile() {
   const [liName, setLiName] = useState('');
   const [liHeadline, setLiHeadline] = useState('');
   const [liEmail, setLiEmail] = useState('');
+  const deriveOrgEdu = (raw: any): { company?: string; school?: string } => {
+    try {
+      if (!raw) return {};
+      const exp = (raw.experiences || raw.experience || raw.positions || raw.jobs || []) as any[];
+      const edu = (raw.education || raw.educations || []) as any[];
+      const firstExp = Array.isArray(exp) ? exp.find((e)=> e && (e.company || e.companyName || e.title)) : undefined;
+      const firstEdu = Array.isArray(edu) ? edu.find((e)=> e && (e.school || e.schoolName || e.organization)) : undefined;
+      const company = (firstExp?.companyName || firstExp?.company || firstExp?.organization || undefined) as string | undefined;
+      const school = (firstEdu?.schoolName || firstEdu?.school || firstEdu?.organization || undefined) as string | undefined;
+      return { company, school };
+    } catch { return {}; }
+  };
 
   // fetch my connections to guard button on load
   const { data: myConnections } = useSWR(ghMe ? `/api/connections/${ghMe.login}` : null, (url) => api.get(url).then(r=>r.data));
@@ -355,6 +367,10 @@ export default function Profile() {
           {(liProfile?.headline || data?.linkedin?.headline) && (
             <p className="text-sm italic text-blue-500 dark:text-blue-400">{liProfile?.headline || data?.linkedin?.headline}</p>
           )}
+          {/* Company / School (from enriched LinkedIn raw) */}
+          {(()=>{ const raw = liProfile?.raw; const d = deriveOrgEdu(raw); return (d.company || d.school) ? (
+            <p className="text-sm text-gray-600 dark:text-gray-300">{[d.company, d.school].filter(Boolean).join(' • ')}</p>
+          ) : null; })()}
 
           {/* Language badges */}
           {topLanguages.length > 0 && (
@@ -413,6 +429,31 @@ export default function Profile() {
               }}
               className='text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded'>
               Copy email
+            </button>
+          )}
+          {isMe && (
+            <button
+              onClick={async ()=>{
+                const url = prompt('Paste your public LinkedIn profile URL');
+                if (!url) return;
+                try {
+                  const res = await fetch(`${BACKEND_URL}/api/linkedin/profile?url=${encodeURIComponent(url)}`);
+                  if (!res.ok) throw new Error(await res.text());
+                  const data = await res.json();
+                  const current = JSON.parse(localStorage.getItem('li_profile') || 'null') || {};
+                  const merged = { ...current, raw: data };
+                  localStorage.setItem('li_profile', JSON.stringify(merged));
+                  if (username) {
+                    try { await supabase.from('linkedin_profiles').upsert({ github_login: username, raw: data }); } catch {}
+                  }
+                  window.location.reload();
+                } catch (e) {
+                  console.error(e);
+                  alert('Failed to enrich from LinkedIn');
+                }
+              }}
+              className='text-xs border border-blue-600 text-blue-600 px-2 py-1 rounded'>
+              Enrich from LinkedIn
             </button>
           )}
           {isMe && (
