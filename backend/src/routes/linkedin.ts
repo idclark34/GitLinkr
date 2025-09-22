@@ -15,7 +15,7 @@ const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supa
 router.get('/linkedin', (_req, res) => {
   const clientId = process.env.LINKEDIN_CLIENT_ID;
   const redirectUri = process.env.LINKEDIN_REDIRECT_URI;
-  const scope = encodeURIComponent('openid profile email r_liteprofile');
+  const scope = encodeURIComponent('openid profile email');
   const state = crypto.randomUUID(); 
   
   res.redirect(
