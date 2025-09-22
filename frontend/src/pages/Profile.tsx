@@ -443,31 +443,7 @@ export default function Profile() {
               Copy email
             </button>
           )}
-          {isMe && (
-            <button
-              onClick={async ()=>{
-                const url = prompt('Paste your public LinkedIn profile URL');
-                if (!url) return;
-                try {
-                  const res = await fetch(`${BACKEND_URL}/api/linkedin/profile?url=${encodeURIComponent(url)}`);
-                  if (!res.ok) throw new Error(await res.text());
-                  const data = await res.json();
-                  const current = JSON.parse(localStorage.getItem('li_profile') || 'null') || {};
-                  const merged = { ...current, raw: data, profile_url: url };
-                  localStorage.setItem('li_profile', JSON.stringify(merged));
-                  if (username) {
-                    try { await supabase.from('linkedin_profiles').upsert({ github_login: username, raw: data, profile_url: url }); } catch {}
-                  }
-                  window.location.reload();
-                } catch (e) {
-                  console.error(e);
-                  alert('Failed to enrich from LinkedIn');
-                }
-              }}
-              className='text-xs border border-blue-600 text-blue-600 px-2 py-1 rounded'>
-              Enrich from LinkedIn
-            </button>
-          )}
+          {/* Manual enrichment via pasted URL is disabled to ensure data only comes from the authenticated LinkedIn account */}
           {isMe && (
             <button
               onClick={async ()=>{ localStorage.removeItem('li_profile'); if (username) { try { await supabase.from('linkedin_profiles').delete().eq('github_login', username); } catch {} } window.location.reload(); }}
