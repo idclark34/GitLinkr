@@ -30,12 +30,12 @@ export default function LinkedInCallback() {
               email: profile?.email || null,
               raw: profile || null,
             });
-            // Auto-enrich: if we stored a profile_url before, try to fetch raw details and persist
+            // Auto-enrich via RapidAPI using vanityName when available
             try {
-              const existing = JSON.parse(localStorage.getItem('li_profile') || 'null');
-              const url = existing?.profile_url || null;
+              const vanity = profile?.vanityName;
               const backendUrl = ((import.meta as any).env?.VITE_BACKEND_URL as string | undefined) || 'http://localhost:4000';
-              if (url) {
+              if (vanity) {
+                const url = `https://www.linkedin.com/in/${vanity}`;
                 const res = await fetch(`${backendUrl}/api/linkedin/profile?url=${encodeURIComponent(url)}`);
                 if (res.ok) {
                   const raw = await res.json();
