@@ -41,7 +41,7 @@ router.get('/linkedin/callback', async (req, res) => {
     const token = await li.exchangeCodeForToken(String(code));
     const profile = await li.fetchLinkedInProfile(token);
 
-    // If client passes gh_login, persist to Supabase
+    // Persist to Supabase if client indicates GitHub login (server-trusted from session in future)
     const ghLogin = typeof req.query.gh_login === 'string' ? req.query.gh_login : undefined;
     if (ghLogin && supabase) {
       try {
@@ -51,6 +51,8 @@ router.get('/linkedin/callback', async (req, res) => {
           name: name || null,
           headline: (profile as any)?.headline || null,
           email: (profile as any)?.email || null,
+          vanity: (profile as any)?.vanityName || null,
+          linkedin_id: (profile as any)?.id || null,
           raw: profile as any,
         });
       } catch (e) {

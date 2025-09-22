@@ -30,17 +30,21 @@ export async function fetchLinkedInProfile(token: string): Promise<any> {
 
   // Fetch headline from v2/me (requires r_liteprofile)
   const meRes = await fetch(
-    'https://api.linkedin.com/v2/me?projection=(id,localizedHeadline)',
+    'https://api.linkedin.com/v2/me?projection=(id,vanityName,localizedHeadline)',
     {
       headers: { Authorization: `Bearer ${token}` },
     },
   );
   let headline = undefined;
+  let vanityName = undefined;
+  let id = undefined;
   if (meRes.ok) {
     const me = (await meRes.json()) as any;
-    headline = (me as any)?.localizedHeadline;
+    headline = me?.localizedHeadline;
+    vanityName = me?.vanityName;
+    id = me?.id;
   }
 
   const ui: any = userinfo as any;
-  return { ...(typeof ui === 'object' && ui ? ui : {}), headline };
+  return { ...(typeof ui === 'object' && ui ? ui : {}), headline, vanityName, id };
 }
