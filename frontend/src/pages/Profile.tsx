@@ -15,7 +15,7 @@ export default function Profile() {
   const { data: followers, mutate: refetchFollowers } = useSWR(username ? `/api/followers/${username}` : null, (url)=>api.get(url).then(r=>r.data));
   const { data: following, mutate: refetchFollowing } = useSWR(username ? `/api/following/${username}` : null, (url)=>api.get(url).then(r=>r.data));
 
-  const liProfile = JSON.parse(localStorage.getItem('li_profile') || 'null');
+  const [liProfile, setLiProfile] = useState<any>(JSON.parse(localStorage.getItem('li_profile') || 'null'));
   const ghMe = JSON.parse(localStorage.getItem('gh_user') || 'null');
   const [about, setAbout] = useState<string>('');
   const [editMode, setEditMode] = useState(false);
@@ -84,12 +84,14 @@ export default function Profile() {
       .maybeSingle()
       .then(({ data }) => {
         if (data) {
-          localStorage.setItem('li_profile', JSON.stringify({
+          const next = {
             name: data.name,
             headline: data.headline,
             email: data.email,
             raw: data.raw,
-          }));
+          } as any;
+          localStorage.setItem('li_profile', JSON.stringify(next));
+          setLiProfile(next);
         }
       })
       .catch(()=>{});
