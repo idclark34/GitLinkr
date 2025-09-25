@@ -45,7 +45,7 @@ router.get('/profile/:username', async (req, res) => {
     const token = (req.headers.authorization || '').replace('Bearer ', '') || process.env.GITHUB_FALLBACK_TOKEN || undefined;
     const user = await github.fetchPublicProfile(username, token);
     const repos = await github.fetchUserRepos(token, username);
-    // Attach LinkedIn profile stub from Supabase if available
+    // Attach LinkedIn profile from Supabase if available
     let li: any = null;
     try {
       const supabaseUrl = process.env.SUPABASE_URL;
@@ -54,7 +54,7 @@ router.get('/profile/:username', async (req, res) => {
         const supabase = createClient(supabaseUrl, supabaseAnonKey);
         const { data } = await supabase
           .from('linkedin_profiles')
-          .select('name, headline, email')
+          .select('name, headline, email, profile_url, raw')
           .eq('github_login', username)
           .maybeSingle();
         li = data || null;
