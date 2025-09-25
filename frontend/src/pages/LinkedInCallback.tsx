@@ -18,42 +18,59 @@ export default function LinkedInCallback() {
       try {
         const { data } = await api.get(`/auth/linkedin/callback?code=${code}`);
         const profile = data.profile;
-        localStorage.setItem('li_profile', JSON.stringify(profile));
         const ghUser = JSON.parse(localStorage.getItem('gh_user') || 'null');
+        const fallbackName = profile?.name || [profile?.given_name, profile?.family_name].filter(Boolean).join(' ') || '';
+        const vanity = profile?.vanityName || profile?.preferred_username || '';
+
+        // Attempt enrichment via Apify for richer fields
+        let enriched: any = null;
+        try {
+          const enrichRes = await api.post('/api/people/enrich', {
+            name: fallbackName || undefined,
+            vanity: vanity || undefined,
+            location: 'United States',
+            maxResults: 5,
+          });
+          const items: any[] = enrichRes.data?.items || [];
+          const norm = (s: string) => String(s || '').toLowerCase().trim();
+          const target = norm(fallbackName);
+          enriched =
+            items.find((it:any)=> norm(it?.basic_info?.fullname) === target) ||
+            items.find((it:any)=> norm(it?.basic_info?.fullname).startsWith(target.split(' ')[0]||'')) ||
+            items[0] || null;
+        } catch {}
+
+        // Compose final profile payload for FE cache
+        const bi = enriched?.basic_info || {};
+        const finalProfile = {
+          name: bi.fullname || fallbackName || null,
+          headline: bi.headline || profile?.headline || null,
+          email: profile?.email || null,
+          profile_url: bi.profile_url || null,
+          raw: enriched || profile || null,
+        } as any;
+        localStorage.setItem('li_profile', JSON.stringify(finalProfile));
+
         // Persist to Supabase if we know the GitHub login
         if (ghUser?.login) {
           try {
             await supabase.from('linkedin_profiles').upsert({
               github_login: ghUser.login,
-              name: profile?.name || [profile?.given_name, profile?.family_name].filter(Boolean).join(' ') || null,
-              headline: profile?.headline || null,
-              email: profile?.email || null,
-              raw: profile || null,
+              name: finalProfile.name,
+              headline: finalProfile.headline,
+              email: finalProfile.email,
+              profile_url: finalProfile.profile_url,
+              raw: finalProfile.raw,
             });
-            // Auto-enrich via RapidAPI using vanityName when available
-            try {
-              const vanity = profile?.vanityName;
-              const backendUrl = ((import.meta as any).env?.VITE_BACKEND_URL as string | undefined) || 'http://localhost:4000';
-              if (vanity) {
-                const url = `https://www.linkedin.com/in/${vanity}`;
-                const res = await fetch(`${backendUrl}/api/linkedin/profile?url=${encodeURIComponent(url)}`);
-                if (res.ok) {
-                  const raw = await res.json();
-                  await supabase.from('linkedin_profiles').upsert({ github_login: ghUser.login, raw, profile_url: url });
-                  localStorage.setItem('li_profile', JSON.stringify({ ...profile, raw, profile_url: url }));
-                }
-              }
-            } catch {}
-            // Opportunistically hydrate custom profile from LinkedIn on first link
+            // Hydrate custom_profiles if missing
             const { data: existing } = await supabase
               .from('custom_profiles')
               .select('display_name, about')
               .eq('github_login', ghUser.login)
               .maybeSingle();
             const updates: any = {};
-            const nameFromLi = profile?.name || [profile?.given_name, profile?.family_name].filter(Boolean).join(' ') || '';
-            if ((!existing || !existing.display_name) && nameFromLi) updates.display_name = nameFromLi;
-            if ((!existing || !existing.about) && (profile?.headline || '')) updates.about = profile.headline;
+            if ((!existing || !existing.display_name) && finalProfile.name) updates.display_name = finalProfile.name;
+            if ((!existing || !existing.about) && finalProfile.headline) updates.about = finalProfile.headline;
             if (Object.keys(updates).length > 0) {
               await supabase.from('custom_profiles').upsert({ github_login: ghUser.login, ...updates });
             }

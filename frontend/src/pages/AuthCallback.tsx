@@ -31,7 +31,19 @@ export default function AuthCallback() {
           window.location.href = `${BACKEND_URL}/auth/linkedin`;
           return;
         }
-        // Redirect to profile page
+        // If first-time user, send to onboarding; else to profile
+        try {
+          const supabase = (await import('../supabase.ts')).default as any;
+          const { data: existing } = await supabase
+            .from('custom_profiles')
+            .select('github_login')
+            .eq('github_login', user.login)
+            .maybeSingle();
+          if (!existing) {
+            navigate('/onboarding/profile', { replace: true });
+            return;
+          }
+        } catch {}
         navigate(`/profile/${user.login}`, { replace: true });
       } catch (err) {
         /* eslint-disable no-console */

@@ -12,6 +12,7 @@ import Feed from './pages/Feed.tsx';
 import Product from './pages/Product.tsx';
 import OnboardProduct from './pages/OnboardProduct.tsx';
 import Trending from './pages/Trending.tsx';
+import OnboardProfile from './pages/OnboardProfile.tsx';
 
 export default function App() {
   const { user } = useAuth();
@@ -28,6 +29,7 @@ export default function App() {
       <Route path="/feed" element={<Feed />} />
       <Route path="/product/:id" element={<Product />} />
       <Route path="/onboarding/product" element={<OnboardProduct />} />
+      <Route path="/onboarding/profile" element={<OnboardProfile />} />
       <Route path="/requests" element={<Requests />} />
       <Route path="/trending" element={<Trending />} />
       <Route path="*" element={<Navigate to="/login" replace />} />

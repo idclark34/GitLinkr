@@ -142,4 +142,53 @@ router.post('/people/search', async (req, res) => {
 
 export default router;
 
+// POST /api/people/enrich - fetch richer LinkedIn profile data via Apify
+// Body: { name?: string; vanity?: string; location?: string; company?: string; maxResults?: number }
+router.post('/people/enrich', async (req, res) => {
+  try {
+    const token = process.env.APIFY_TOKEN;
+    if (!token) return res.status(500).json({ error: 'APIFY_TOKEN not configured' });
+    const { name, vanity, location, company, maxResults = 3 } = (req.body || {}) as { name?: string; vanity?: string; location?: string; company?: string; maxResults?: number };
+    if (!name && !vanity && !company) return res.status(400).json({ error: 'Provide at least one of name, vanity, or company' });
+
+    // Build a targeted query
+    const keywordsParts = [name, vanity, company].filter(Boolean) as string[];
+    const input: Record<string, any> = {
+      keywords: keywordsParts.join(' ').trim(),
+      location: location || undefined,
+      maxResults,
+    };
+
+    const startUrl = `${APIFY_BASE}/acts/${DEFAULT_ACTOR}/runs?token=${encodeURIComponent(token)}`;
+    const startRes = await fetch(startUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+    const start: any = await startRes.json();
+    if (!startRes.ok) return res.status(startRes.status).json(start);
+
+    const runId = (start as any)?.data?.id || (start as any)?.id;
+    if (!runId) return res.status(500).json({ error: 'missing run id' });
+
+    // Wait up to 60s for quick enrichment
+    const maxMs = 60_000; const intervalMs = 1500; const t0 = Date.now();
+    while (Date.now() - t0 < maxMs) {
+      const runRes = await fetch(`${APIFY_BASE}/actor-runs/${encodeURIComponent(runId)}?token=${encodeURIComponent(token)}`);
+      const run: any = await runRes.json();
+      if (!runRes.ok) return res.status(runRes.status).json(run);
+      const status = (run as any)?.data?.status || (run as any)?.status;
+      const datasetId = (run as any)?.data?.defaultDatasetId || (run as any)?.defaultDatasetId;
+      if (['SUCCEEDED','FAILED','ABORTED','TIMED-OUT'].includes(status)) {
+        if (status !== 'SUCCEEDED' || !datasetId) return res.json({ status, items: [] });
+        const dsRes = await fetch(`${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?token=${encodeURIComponent(token)}`);
+        const items: any[] = await dsRes.json();
+        return res.json({ status, items });
+      }
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    return res.json({ status: 'POLL_TIMEOUT', items: [] });
+  } catch (err: any) {
+    /* eslint-disable no-console */
+    console.error('people enrich failed', err);
+    return res.status(500).json({ error: 'people enrich failed', details: err?.message });
+  }
+});
+
 
