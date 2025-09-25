@@ -178,7 +178,7 @@ router.post('/people/enrich', async (req, res) => {
       if (['SUCCEEDED','FAILED','ABORTED','TIMED-OUT'].includes(status)) {
         if (status !== 'SUCCEEDED' || !datasetId) return res.json({ status, items: [] });
         const dsRes = await fetch(`${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?token=${encodeURIComponent(token)}`);
-        const items: any[] = await dsRes.json();
+        const items: any = await dsRes.json();
         return res.json({ status, items });
       }
       await new Promise((r) => setTimeout(r, intervalMs));
