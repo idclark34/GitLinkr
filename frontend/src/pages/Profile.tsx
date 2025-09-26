@@ -28,6 +28,7 @@ export default function Profile() {
   const [liHeadline, setLiHeadline] = useState('');
   const [liEmail, setLiEmail] = useState('');
   const [liSyncing, setLiSyncing] = useState(false);
+  const [liUrl, setLiUrl] = useState('');
   const deriveFromRaw = (raw: any): { company?: string; school?: string; title?: string; location?: string; skills?: string[]; companyLogo?: string; companyUrl?: string } => {
     try {
       if (!raw) return {};
@@ -486,6 +487,49 @@ export default function Profile() {
             >
               {liSyncing ? 'Syncing…' : 'Sync from LinkedIn'}
             </button>
+          )}
+          {isMe && (
+            <div className='flex items-center gap-2'>
+              <input
+                value={liUrl}
+                onChange={(e)=>setLiUrl(e.target.value)}
+                placeholder='Paste your exact LinkedIn profile URL'
+                className='text-xs px-2 py-1 rounded border dark:bg-gray-900/40'
+              />
+              <button
+                onClick={async ()=>{
+                  const m = liUrl.match(/linkedin\.com\/in\/([^/?#]+)/i);
+                  if (!m) { alert('Enter a valid LinkedIn profile URL'); return; }
+                  const vanity = m[1];
+                  try {
+                    setLiSyncing(true);
+                    const res = await api.post('/api/people/enrich', { vanity, maxResults: 1, wait: true });
+                    const item = Array.isArray(res.data?.items) ? res.data.items[0] : null;
+                    if (!item) { alert('Could not fetch that profile. Try again.'); return; }
+                    const bi = item.basic_info || {};
+                    const final = {
+                      name: bi.fullname || liProfile?.name || user?.name || null,
+                      headline: bi.headline || null,
+                      email: liProfile?.email || null,
+                      profile_url: bi.profile_url || liUrl,
+                      raw: item,
+                    } as any;
+                    localStorage.setItem('li_profile', JSON.stringify(final));
+                    setLiProfile(final);
+                    if (isMe && username) {
+                      try {
+                        await supabase.from('linkedin_profiles').upsert({ github_login: username, ...final });
+                        await supabase.from('custom_profiles').upsert({ github_login: username, display_name: displayName || final.name || user.login, about: about || final.headline || null });
+                      } catch {}
+                    }
+                  } finally { setLiSyncing(false); }
+                }}
+                className='text-xs border border-blue-600 text-blue-600 px-2 py-1 rounded disabled:opacity-50'
+                disabled={liSyncing}
+              >
+                Use this URL
+              </button>
+            </div>
           )}
           {/* Manual enrichment via pasted URL is disabled to ensure data only comes from the authenticated LinkedIn account */}
           {isMe && (
