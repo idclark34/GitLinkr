@@ -167,8 +167,8 @@ router.post('/people/enrich', async (req, res) => {
     const runId = (start as any)?.data?.id || (start as any)?.id;
     if (!runId) return res.status(500).json({ error: 'missing run id' });
 
-    // Wait up to 60s for quick enrichment
-    const maxMs = 60_000; const intervalMs = 1500; const t0 = Date.now();
+    // Wait up to 120s for enrichment
+    const maxMs = 120_000; const intervalMs = 1500; const t0 = Date.now();
     while (Date.now() - t0 < maxMs) {
       const runRes = await fetch(`${APIFY_BASE}/actor-runs/${encodeURIComponent(runId)}?token=${encodeURIComponent(token)}`);
       const run: any = await runRes.json();
@@ -176,14 +176,14 @@ router.post('/people/enrich', async (req, res) => {
       const status = (run as any)?.data?.status || (run as any)?.status;
       const datasetId = (run as any)?.data?.defaultDatasetId || (run as any)?.defaultDatasetId;
       if (['SUCCEEDED','FAILED','ABORTED','TIMED-OUT'].includes(status)) {
-        if (status !== 'SUCCEEDED' || !datasetId) return res.json({ status, items: [] });
+        if (status !== 'SUCCEEDED' || !datasetId) return res.json({ status, runId, items: [] });
         const dsRes = await fetch(`${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items?token=${encodeURIComponent(token)}`);
         const items: any = await dsRes.json();
-        return res.json({ status, items });
+        return res.json({ status, runId, items });
       }
       await new Promise((r) => setTimeout(r, intervalMs));
     }
-    return res.json({ status: 'POLL_TIMEOUT', items: [] });
+    return res.json({ status: 'POLL_TIMEOUT', runId, items: [] });
   } catch (err: any) {
     /* eslint-disable no-console */
     console.error('people enrich failed', err);

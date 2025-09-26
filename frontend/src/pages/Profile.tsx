@@ -475,6 +475,9 @@ export default function Profile() {
                         await supabase.from('custom_profiles').upsert({ github_login: username, display_name: displayName || final.name || user.login, about: about || final.headline || null });
                       } catch {}
                     }
+                  } else {
+                    const s = res.data?.status;
+                    alert(s === 'POLL_TIMEOUT' ? 'Still processing. Please try again in a minute.' : 'No LinkedIn results found for your name.');
                   }
                 } finally { setLiSyncing(false); }
               }}
