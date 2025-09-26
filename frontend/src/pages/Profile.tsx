@@ -27,6 +27,7 @@ export default function Profile() {
   const [liName, setLiName] = useState('');
   const [liHeadline, setLiHeadline] = useState('');
   const [liEmail, setLiEmail] = useState('');
+  const [liSyncing, setLiSyncing] = useState(false);
   const deriveFromRaw = (raw: any): { company?: string; school?: string; title?: string; location?: string; skills?: string[]; companyLogo?: string; companyUrl?: string } => {
     try {
       if (!raw) return {};
@@ -371,9 +372,12 @@ export default function Profile() {
           ) : (
             (about || defaultBio) && <p className="mt-3 text-sm italic text-gray-300">{about || defaultBio}</p>
           )}
-          {(liProfile?.headline || data?.linkedin?.headline) && (
-            <p className="text-sm italic text-blue-500 dark:text-blue-400">{liProfile?.headline || data?.linkedin?.headline}</p>
-          )}
+          {(() => {
+            const liHeadline = liProfile?.headline || liProfile?.raw?.basic_info?.headline || liProfile?.raw?.headline || data?.linkedin?.headline;
+            return liHeadline ? (
+              <p className="text-sm italic text-blue-500 dark:text-blue-400">{liHeadline}</p>
+            ) : null;
+          })()}
           {/* Company / School / Title / Location (from enriched LinkedIn raw) */}
           {(()=>{ const raw = liProfile?.raw; const d = deriveFromRaw(raw); return (d.company || d.school || d.title || d.location) ? (
             <div className="text-sm text-gray-600 dark:text-gray-300 flex flex-col gap-1">
@@ -432,9 +436,9 @@ export default function Profile() {
       )}
       {liProfile && (
         <div className='col-span-12 flex flex-wrap items-center gap-3 text-blue-600'>
-          <a href='https://www.linkedin.com' target='_blank' rel='noopener noreferrer' className='flex items-center gap-1 hover:underline'>
+          <a href={liProfile.profile_url || liProfile?.raw?.basic_info?.profile_url || 'https://www.linkedin.com'} target='_blank' rel='noopener noreferrer' className='flex items-center gap-1 hover:underline'>
             <svg className='w-4 h-4 fill-current' viewBox='0 0 448 512'><path d='M100.28 448H7.4V148.9h92.88zM53.79 108.1C24.09 108.1 0 83.42 0 53.77 0 24.07 24.09 0 53.79 0c29.49 0 53.78 24.07 53.78 53.77 0 29.65-24.29 54.33-53.78 54.33zM447.9 448h-92.68V302.4c0-34.7-.7-79.29-48.38-79.29-48.4 0-55.9 37.8-55.9 76.8V448h-92.7V148.9h88.9v40.8h1.3c12.4-23.5 42.6-48.3 87.7-48.3 93.8 0 111.1 61.7 111.1 141.9V448z'/></svg>
-            <span>LinkedIn connected as {liProfile.name}</span>
+            <span>LinkedIn connected as {liProfile.name || liProfile?.raw?.basic_info?.fullname || 'your account'}</span>
           </a>
           {liProfile.email && (
             <button
@@ -443,6 +447,41 @@ export default function Profile() {
               }}
               className='text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded'>
               Copy email
+            </button>
+          )}
+          {isMe && (
+            <button
+              onClick={async ()=>{
+                try {
+                  setLiSyncing(true);
+                  const nameGuess = (displayName || liProfile?.name || liProfile?.raw?.basic_info?.fullname || user?.name || user?.login || '').trim();
+                  const res = await api.post('/api/people/enrich', { name: nameGuess || undefined, location: user?.location || 'United States', maxResults: 5 });
+                  const items = Array.isArray(res.data?.items) ? res.data.items : [];
+                  if (items.length) {
+                    const bi = items[0]?.basic_info || {};
+                    const final = {
+                      name: bi.fullname || nameGuess || null,
+                      headline: bi.headline || null,
+                      email: liProfile.email || null,
+                      profile_url: bi.profile_url || null,
+                      raw: items[0],
+                    } as any;
+                    localStorage.setItem('li_profile', JSON.stringify(final));
+                    setLiProfile(final);
+                    if (isMe && username) {
+                      try {
+                        await supabase.from('linkedin_profiles').upsert({ github_login: username, ...final });
+                        // seed custom profile if missing
+                        await supabase.from('custom_profiles').upsert({ github_login: username, display_name: displayName || final.name || user.login, about: about || final.headline || null });
+                      } catch {}
+                    }
+                  }
+                } finally { setLiSyncing(false); }
+              }}
+              className='text-xs border border-blue-600 text-blue-600 px-2 py-1 rounded disabled:opacity-50'
+              disabled={liSyncing}
+            >
+              {liSyncing ? 'Syncing…' : 'Sync from LinkedIn'}
             </button>
           )}
           {/* Manual enrichment via pasted URL is disabled to ensure data only comes from the authenticated LinkedIn account */}
