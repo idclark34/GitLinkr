@@ -54,6 +54,8 @@ router.get('/linkedin/callback', async (req, res) => {
           email: (profile as any)?.email || null,
           vanity: (profile as any)?.vanityName || null,
           linkedin_id: (profile as any)?.id || null,
+          linkedin_sub: (profile as any)?.sub || null,
+          verified_at: new Date().toISOString(),
           raw: profile as any,
         });
       } catch (e) {

@@ -47,6 +47,7 @@ export default function LinkedInCallback() {
           headline: bi.headline || profile?.headline || null,
           email: profile?.email || null,
           profile_url: bi.profile_url || null,
+          sub: profile?.sub || null,
           raw: enriched || profile || null,
         } as any;
         localStorage.setItem('li_profile', JSON.stringify(finalProfile));
@@ -60,6 +61,8 @@ export default function LinkedInCallback() {
               headline: finalProfile.headline,
               email: finalProfile.email,
               profile_url: finalProfile.profile_url,
+              linkedin_sub: finalProfile.sub,
+              verified_at: new Date().toISOString(),
               raw: finalProfile.raw,
             });
             // Hydrate custom_profiles if missing
